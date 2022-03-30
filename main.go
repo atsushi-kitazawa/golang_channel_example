@@ -3,7 +3,16 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
+)
+
+type client chan<- string
+
+var (
+	entering = make(chan client)
+	leaving  = make(chan client)
+	messages = make(chan string)
 )
 
 func main() {
@@ -11,28 +20,61 @@ func main() {
 }
 
 func doMain() {
-	listner, err := net.Listen("tcp", ":8888")
+	listner, err := net.Listen("tcp", "localhost:8888")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+
+	go broadcaster()
 
 	for {
 		conn, err := listner.Accept()
 		if err != nil {
-			panic(err)
+			fmt.Print(err)
+			continue
 		}
 
-		go echoHandler(conn)
+		go connHandler(conn)
 	}
 }
 
-func echoHandler(conn net.Conn) {
+func broadcaster() {
+	clients := make(map[client]bool)
 	for {
-		data, err := bufio.NewReader(conn).ReadString('\n')
-		if err != nil {
-			fmt.Println("connection reset by peer.")
-			return
+		select {
+		case msg := <-messages:
+			for c := range clients {
+				c <- msg
+			}
+		case c := <-entering:
+			clients[c] = true
+		case c := <-leaving:
+			delete(clients, c)
+			close(c)
 		}
-		conn.Write([]byte(conn.RemoteAddr().String() + " > " + data))
+	}
+}
+
+func connHandler(conn net.Conn) {
+	sender := make(chan string)
+	go clientWriter(conn, sender)
+
+	sender <- fmt.Sprintf("You are %s", conn.RemoteAddr().String())
+	messages <- fmt.Sprintf("%s has arrived", conn.RemoteAddr().String())
+	entering <- sender
+
+	input := bufio.NewScanner(conn)
+	for input.Scan() {
+		messages <- fmt.Sprintf("%s : %s", conn.RemoteAddr().String(), input.Text())
+	}
+
+	leaving <- sender
+	messages <- fmt.Sprintf("%s has left", conn.RemoteAddr().String())
+	conn.Close()
+}
+
+func clientWriter(conn net.Conn, sender <-chan string) {
+	for msg := range sender {
+		fmt.Fprintln(conn, msg)
 	}
 }
