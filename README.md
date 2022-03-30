@@ -5,6 +5,7 @@
 - [x] leave room
 - [x] create room
 - [ ] switch room
+- [ ] display client name
 - [ ] member list in room
 - [ ] room list
 - [ ] logging room message
