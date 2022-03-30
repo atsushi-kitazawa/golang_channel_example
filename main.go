@@ -10,9 +10,9 @@ import (
 type client chan<- string
 
 var (
-	entering = make(chan client)
-	leaving  = make(chan client)
-	messages = make(chan string)
+	entering = make(chan client) //入室を関しするチャネル
+	leaving  = make(chan client) //退室を監視するチャネル
+	messages = make(chan string) //ブロードキャスト用のメッセージを保持
 )
 
 func main() {
@@ -42,7 +42,7 @@ func broadcaster() {
 	clients := make(map[client]bool)
 	for {
 		select {
-		case msg := <-messages:
+		case msg := <-messages: //メッセージを入室しているクライアントの送信用チャネルに送る
 			for c := range clients {
 				c <- msg
 			}
