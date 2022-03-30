@@ -81,6 +81,10 @@ func connHandler(conn net.Conn) {
 	for input.Scan() {
 		msg := input.Text()
 		if strings.HasPrefix(msg, "/join") {
+			if r != nil {
+				sender <- "Please leave room before join"
+				continue
+			}
 			n := joinRoomName(msg)
 			r = joinRoom(n, sender)
 			sender <- fmt.Sprintf("[%s] You are %s", r.name, conn.RemoteAddr().String())
@@ -110,7 +114,7 @@ func connHandler(conn net.Conn) {
 		if r != nil {
 			r.messages <- fmt.Sprintf("[%s] %s : %s", r.name, conn.RemoteAddr().String(), input.Text())
 		} else {
-			fmt.Fprintln(conn, "Please join room")
+			sender <- "Please join room"
 		}
 	}
 
@@ -157,15 +161,6 @@ func joinRoom(name string, c client) *room {
 		}
 	}
 	return &defaultRoom
-}
-
-// TODO room function
-func leaveRoom(name string, c client) {
-	for _, r := range rooms {
-		if r.name == name {
-			delete(r.clients, c)
-		}
-	}
 }
 
 func createRoom(name string) *room {
