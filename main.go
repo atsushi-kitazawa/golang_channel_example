@@ -68,7 +68,6 @@ func (r *room) broadcaster() {
 			r.clients[c] = true
 		case c := <-r.leaving:
 			delete(r.clients, c)
-			close(c)
 		}
 	}
 }
@@ -82,18 +81,33 @@ func connHandler(conn net.Conn) {
 	for input.Scan() {
 		msg := input.Text()
 		if strings.HasPrefix(msg, "/join") {
-			n := roomName(msg)
+			n := joinRoomName(msg)
 			r = joinRoom(n, sender)
 			sender <- fmt.Sprintf("[%s] You are %s", r.name, conn.RemoteAddr().String())
 			r.messages <- fmt.Sprintf("[%s] %s has arrived", r.name, conn.RemoteAddr().String())
 			r.entering <- sender
-		} else {
+			continue
+		}
+
+		if strings.HasPrefix(msg, "/leave") {
+			r.leaving <- sender
+			r.messages <- fmt.Sprintf("[%s] %s has left", r.name, conn.RemoteAddr().String())
+			r = nil
+			continue
+		}
+
+		if r != nil {
 			r.messages <- fmt.Sprintf("[%s] %s : %s", r.name, conn.RemoteAddr().String(), input.Text())
+		} else {
+			fmt.Fprintln(conn, "Please join room")
 		}
 	}
 
-	r.leaving <- sender
-	r.messages <- fmt.Sprintf("[%s] %s has left", r.name, conn.RemoteAddr().String())
+	if r != nil {
+		delete(r.clients, sender)
+		r.messages <- fmt.Sprintf("[%s] %s has left", r.name, conn.RemoteAddr().String())
+	}
+	close(sender)
 	conn.Close()
 }
 
@@ -123,6 +137,7 @@ func initRoom() {
 	rooms = append(rooms, r1)
 }
 
+// TODO room function
 func joinRoom(name string, c client) *room {
 	for _, r := range rooms {
 		if r.name == name {
@@ -133,6 +148,15 @@ func joinRoom(name string, c client) *room {
 	return &defaultRoom
 }
 
-func roomName(input string) string {
+// TODO room function
+func leaveRoom(name string, c client) {
+	for _, r := range rooms {
+		if r.name == name {
+			delete(r.clients, c)
+		}
+	}
+}
+
+func joinRoomName(input string) string {
 	return strings.TrimPrefix(input, "/join ")
 }

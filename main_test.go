@@ -8,7 +8,7 @@ import (
 )
 
 func TestRoomName(t *testing.T) {
-	name := roomName("/join room1")
+	name := joinRoomName("/join room1")
 	assert.Equal(t, "room1", name)
 }
 
