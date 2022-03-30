@@ -96,6 +96,17 @@ func connHandler(conn net.Conn) {
 			continue
 		}
 
+		if strings.HasPrefix(msg, "/create") {
+			n := createRoomName(msg)
+			r := createRoom(n)
+			go r.broadcaster()
+			continue
+		}
+
+		if strings.HasPrefix(msg, "/members") {
+			continue
+		}
+
 		if r != nil {
 			r.messages <- fmt.Sprintf("[%s] %s : %s", r.name, conn.RemoteAddr().String(), input.Text())
 		} else {
@@ -157,6 +168,23 @@ func leaveRoom(name string, c client) {
 	}
 }
 
+func createRoom(name string) *room {
+	r := room{
+		name:     name,
+		clients:  make(map[client]bool),
+		entering: make(chan client),
+		leaving:  make(chan client),
+		messages: make(chan string),
+	}
+	rooms = append(rooms, r)
+	return &r
+}
+
 func joinRoomName(input string) string {
 	return strings.TrimPrefix(input, "/join ")
+}
+
+func createRoomName(input string) string {
+	s := strings.TrimPrefix(input, "/create ")
+	return strings.Trim(s, " ")
 }
