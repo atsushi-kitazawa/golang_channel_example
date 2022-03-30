@@ -22,7 +22,10 @@ func TestInitRoom(t *testing.T) {
 func TestJoinRoom(t *testing.T) {
 	initRoom()
 
-	client := make(chan string)
+	client := client{
+		name:   "user1",
+		sender: make(chan string),
+	}
 	r := joinRoom("room1", client)
 	assert.Equal(t, r.name, "room1")
 

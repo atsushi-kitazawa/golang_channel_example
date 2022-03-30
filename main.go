@@ -24,7 +24,10 @@ var defaultRoom = room{
 	messages: make(chan string),
 }
 
-type client chan<- string
+type client struct {
+	name   string
+	sender chan<- string
+}
 
 var (
 	rooms = make([]room, 0)
@@ -62,7 +65,7 @@ func (r *room) broadcaster() {
 		select {
 		case msg := <-r.messages: //メッセージを入室しているクライアントの送信用チャネルに送る
 			for c := range r.clients {
-				c <- msg
+				c.sender <- msg
 			}
 		case c := <-r.entering:
 			r.clients[c] = true
@@ -75,6 +78,10 @@ func (r *room) broadcaster() {
 func connHandler(conn net.Conn) {
 	var r *room
 	sender := make(chan string)
+	c := client{
+		name:   conn.RemoteAddr().String(),
+		sender: sender,
+	}
 	go clientWriter(conn, sender)
 
 	input := bufio.NewScanner(conn)
@@ -86,16 +93,16 @@ func connHandler(conn net.Conn) {
 				continue
 			}
 			n := joinRoomName(msg)
-			r = joinRoom(n, sender)
-			sender <- fmt.Sprintf("[%s] You are %s", r.name, conn.RemoteAddr().String())
-			r.messages <- fmt.Sprintf("[%s] %s has arrived", r.name, conn.RemoteAddr().String())
-			r.entering <- sender
+			r = joinRoom(n, c)
+			sender <- fmt.Sprintf("[%s] You are %s", r.name, c.name)
+			r.messages <- fmt.Sprintf("[%s] %s has arrived", r.name, c.name)
+			r.entering <- c
 			continue
 		}
 
 		if strings.HasPrefix(msg, "/leave") {
-			r.leaving <- sender
-			r.messages <- fmt.Sprintf("[%s] %s has left", r.name, conn.RemoteAddr().String())
+			r.leaving <- c
+			r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 			r = nil
 			continue
 		}
@@ -108,19 +115,34 @@ func connHandler(conn net.Conn) {
 		}
 
 		if strings.HasPrefix(msg, "/members") {
+			if r == nil {
+				sender <- "Please join room"
+				continue
+			}
+			var members string
+			for c := range r.clients {
+				members += c.name + ","
+			}
+			sender <- members
+			continue
+		}
+
+		if strings.HasPrefix(msg, "/login") {
+			n := clientName(msg)
+			c.name = n
 			continue
 		}
 
 		if r != nil {
-			r.messages <- fmt.Sprintf("[%s] %s : %s", r.name, conn.RemoteAddr().String(), input.Text())
+			r.messages <- fmt.Sprintf("[%s] %s : %s", r.name, c.name, input.Text())
 		} else {
 			sender <- "Please join room"
 		}
 	}
 
 	if r != nil {
-		delete(r.clients, sender)
-		r.messages <- fmt.Sprintf("[%s] %s has left", r.name, conn.RemoteAddr().String())
+		delete(r.clients, c)
+		r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 	}
 	close(sender)
 	conn.Close()
@@ -182,4 +204,8 @@ func joinRoomName(input string) string {
 func createRoomName(input string) string {
 	s := strings.TrimPrefix(input, "/create ")
 	return strings.Trim(s, " ")
+}
+
+func clientName(input string) string {
+	return strings.TrimPrefix(input, "/login ")
 }
