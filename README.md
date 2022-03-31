@@ -4,7 +4,7 @@
 - [x] join room
 - [x] leave room
 - [x] create room
-- [ ] switch room
+- [x] switch room
 - [x] display client name
 - [x] member list in room
 - [ ] room list

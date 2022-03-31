@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -88,11 +89,11 @@ func connHandler(conn net.Conn) {
 	for input.Scan() {
 		msg := input.Text()
 		if strings.HasPrefix(msg, "/join") {
-			if r != nil {
-				sender <- "Please leave room before join"
+			n := trimCmd(msg, "/join")
+			if checkAlreadyJoined(n, c) {
+				sender <- fmt.Sprintf("You are already joined %s", n)
 				continue
 			}
-			n := joinRoomName(msg)
 			r = joinRoom(n, c)
 			sender <- fmt.Sprintf("[%s] You are %s", r.name, c.name)
 			r.messages <- fmt.Sprintf("[%s] %s has arrived", r.name, c.name)
@@ -108,7 +109,7 @@ func connHandler(conn net.Conn) {
 		}
 
 		if strings.HasPrefix(msg, "/create") {
-			n := createRoomName(msg)
+			n := trimCmd(msg, "/create")
 			r := createRoom(n)
 			go r.broadcaster()
 			continue
@@ -127,14 +128,31 @@ func connHandler(conn net.Conn) {
 			continue
 		}
 
+		if strings.HasPrefix(msg, "/switch") {
+			n := trimCmd(msg, "/switch")
+			if !checkAlreadyJoined(n, c) {
+				sender <- fmt.Sprintf("Please join room %s", n)
+				continue
+			}
+			r, _ = getRoom(n)
+			sender <- fmt.Sprintf("switch %s", n)
+			continue
+		}
+
+		if strings.HasPrefix(msg, "/current") {
+			sender <- r.name
+			continue
+		}
+
 		if strings.HasPrefix(msg, "/login") {
-			n := clientName(msg)
+			n := trimCmd(msg, "/login")
 			c.name = n
 			continue
 		}
 
 		if r != nil {
 			r.messages <- fmt.Sprintf("[%s] %s : %s", r.name, c.name, input.Text())
+			fmt.Println(r.clients)
 		} else {
 			sender <- "Please join room"
 		}
@@ -185,6 +203,21 @@ func joinRoom(name string, c client) *room {
 	return &defaultRoom
 }
 
+func checkAlreadyJoined(name string, c client) bool {
+	for _, r := range rooms {
+		if r.name == name {
+			for cc := range r.clients {
+				if cc.name == c.name {
+					return true
+				}
+			}
+		} else {
+			continue
+		}
+	}
+	return false
+}
+
 func createRoom(name string) *room {
 	r := room{
 		name:     name,
@@ -197,15 +230,16 @@ func createRoom(name string) *room {
 	return &r
 }
 
-func joinRoomName(input string) string {
-	return strings.TrimPrefix(input, "/join ")
+func getRoom(name string) (*room, error) {
+	for _, r := range rooms {
+		if r.name == name {
+			return &r, nil
+		}
+	}
+	return nil, errors.New("not exist " + name)
 }
 
-func createRoomName(input string) string {
-	s := strings.TrimPrefix(input, "/create ")
+func trimCmd(msg, cmd string) string {
+	s := strings.TrimPrefix(msg, cmd)
 	return strings.Trim(s, " ")
-}
-
-func clientName(input string) string {
-	return strings.TrimPrefix(input, "/login ")
 }

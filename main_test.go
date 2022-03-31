@@ -8,7 +8,7 @@ import (
 )
 
 func TestRoomName(t *testing.T) {
-	name := joinRoomName("/join room1")
+	name := trimCmd("/join room1", "/join")
 	assert.Equal(t, "room1", name)
 }
 
@@ -31,4 +31,20 @@ func TestJoinRoom(t *testing.T) {
 
 	r = joinRoom("room_no_exist", client)
 	assert.Equal(t, r.name, "default_room")
+}
+
+func TestCheckHasJoined(t *testing.T) {
+	initRoom()
+
+	client := client{
+		name:   "user1",
+		sender: make(chan string),
+	}
+	joinRoom("room1", client)
+
+	ret := checkAlreadyJoined("room1", client)
+	assert.Equal(t, true, ret)
+
+	ret = checkAlreadyJoined("room2", client)
+	assert.Equal(t, false, ret)
 }
