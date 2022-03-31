@@ -30,6 +30,16 @@ type client struct {
 	sender chan<- string
 }
 
+const (
+	joinCmd    = "/join"
+	leaveCmd   = "/leave"
+	createCmd  = "/create"
+	switchCmd  = "/switch"
+	membersCmd = "/members"
+	currentCmd = "/current"
+	loginCmd   = "/login"
+)
+
 var (
 	rooms = make([]room, 0)
 )
@@ -79,7 +89,7 @@ func (r *room) broadcaster() {
 func connHandler(conn net.Conn) {
 	var r *room
 	sender := make(chan string)
-	c := client{
+	c := &client{
 		name:   conn.RemoteAddr().String(),
 		sender: sender,
 	}
@@ -88,34 +98,34 @@ func connHandler(conn net.Conn) {
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		msg := input.Text()
-		if strings.HasPrefix(msg, "/join") {
-			n := trimCmd(msg, "/join")
-			if checkAlreadyJoined(n, c) {
+		if strings.HasPrefix(msg, joinCmd) {
+			n := trimCmd(msg, joinCmd)
+			if checkAlreadyJoined(n, *c) {
 				sender <- fmt.Sprintf("You are already joined %s", n)
 				continue
 			}
-			r = joinRoom(n, c)
+			r = joinRoom(n, *c)
 			sender <- fmt.Sprintf("[%s] You are %s", r.name, c.name)
 			r.messages <- fmt.Sprintf("[%s] %s has arrived", r.name, c.name)
-			r.entering <- c
+			r.entering <- *c
 			continue
 		}
 
-		if strings.HasPrefix(msg, "/leave") {
-			r.leaving <- c
+		if strings.HasPrefix(msg, leaveCmd) {
+			r.leaving <- *c
 			r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 			r = nil
 			continue
 		}
 
-		if strings.HasPrefix(msg, "/create") {
-			n := trimCmd(msg, "/create")
+		if strings.HasPrefix(msg, createCmd) {
+			n := trimCmd(msg, createCmd)
 			r := createRoom(n)
 			go r.broadcaster()
 			continue
 		}
 
-		if strings.HasPrefix(msg, "/members") {
+		if strings.HasPrefix(msg, membersCmd) {
 			if r == nil {
 				sender <- "Please join room"
 				continue
@@ -128,9 +138,9 @@ func connHandler(conn net.Conn) {
 			continue
 		}
 
-		if strings.HasPrefix(msg, "/switch") {
-			n := trimCmd(msg, "/switch")
-			if !checkAlreadyJoined(n, c) {
+		if strings.HasPrefix(msg, switchCmd) {
+			n := trimCmd(msg, switchCmd)
+			if !checkAlreadyJoined(n, *c) {
 				sender <- fmt.Sprintf("Please join room %s", n)
 				continue
 			}
@@ -139,13 +149,13 @@ func connHandler(conn net.Conn) {
 			continue
 		}
 
-		if strings.HasPrefix(msg, "/current") {
+		if strings.HasPrefix(msg, currentCmd) {
 			sender <- r.name
 			continue
 		}
 
-		if strings.HasPrefix(msg, "/login") {
-			n := trimCmd(msg, "/login")
+		if strings.HasPrefix(msg, loginCmd) {
+			n := trimCmd(msg, loginCmd)
 			c.name = n
 			continue
 		}
@@ -159,7 +169,7 @@ func connHandler(conn net.Conn) {
 	}
 
 	if r != nil {
-		delete(r.clients, c)
+		delete(r.clients, *c)
 		r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 	}
 	close(sender)
