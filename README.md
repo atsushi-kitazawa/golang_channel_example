@@ -11,6 +11,7 @@
   - [ ] all list
   - [ ] joined list
 - [ ] logging room message
+- [ ] stored room infomation
 - [ ] HTTP support
 
 ## chat client(console) todo
