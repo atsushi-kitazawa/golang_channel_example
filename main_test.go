@@ -22,7 +22,7 @@ func TestInitRoom(t *testing.T) {
 func TestJoinRoom(t *testing.T) {
 	initRoom()
 
-	client := client{
+	client := &client{
 		name:   "user1",
 		sender: make(chan string),
 	}
@@ -36,7 +36,7 @@ func TestJoinRoom(t *testing.T) {
 func TestCheckHasJoined(t *testing.T) {
 	initRoom()
 
-	client := client{
+	client := &client{
 		name:   "user1",
 		sender: make(chan string),
 	}
@@ -44,7 +44,12 @@ func TestCheckHasJoined(t *testing.T) {
 
 	ret := checkAlreadyJoined("room1", client)
 	assert.Equal(t, true, ret)
+	ret = checkAlreadyJoined("room2", client)
+	assert.Equal(t, false, ret)
 
+	client.name = "user11"
+	ret = checkAlreadyJoined("room1", client)
+	assert.Equal(t, true, ret)
 	ret = checkAlreadyJoined("room2", client)
 	assert.Equal(t, false, ret)
 }

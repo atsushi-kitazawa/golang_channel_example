@@ -11,17 +11,17 @@ import (
 
 type room struct {
 	name     string
-	clients  map[client]bool
-	entering chan client //入室を監視するチャネル
-	leaving  chan client //退室を監視するチャネル
-	messages chan string //ブロードキャスト用のメッセージを保持
+	clients  map[*client]bool
+	entering chan *client //入室を監視するチャネル
+	leaving  chan *client //退室を監視するチャネル
+	messages chan string  //ブロードキャスト用のメッセージを保持
 }
 
 var defaultRoom = room{
 	name:     "default_room",
-	clients:  make(map[client]bool),
-	entering: make(chan client),
-	leaving:  make(chan client),
+	clients:  make(map[*client]bool),
+	entering: make(chan *client),
+	leaving:  make(chan *client),
 	messages: make(chan string),
 }
 
@@ -100,19 +100,19 @@ func connHandler(conn net.Conn) {
 		msg := input.Text()
 		if strings.HasPrefix(msg, joinCmd) {
 			n := trimCmd(msg, joinCmd)
-			if checkAlreadyJoined(n, *c) {
+			if checkAlreadyJoined(n, c) {
 				sender <- fmt.Sprintf("You are already joined %s", n)
 				continue
 			}
-			r = joinRoom(n, *c)
+			r = joinRoom(n, c)
 			sender <- fmt.Sprintf("[%s] You are %s", r.name, c.name)
 			r.messages <- fmt.Sprintf("[%s] %s has arrived", r.name, c.name)
-			r.entering <- *c
+			r.entering <- c
 			continue
 		}
 
 		if strings.HasPrefix(msg, leaveCmd) {
-			r.leaving <- *c
+			r.leaving <- c
 			r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 			r = nil
 			continue
@@ -140,7 +140,7 @@ func connHandler(conn net.Conn) {
 
 		if strings.HasPrefix(msg, switchCmd) {
 			n := trimCmd(msg, switchCmd)
-			if !checkAlreadyJoined(n, *c) {
+			if !checkAlreadyJoined(n, c) {
 				sender <- fmt.Sprintf("Please join room %s", n)
 				continue
 			}
@@ -169,7 +169,7 @@ func connHandler(conn net.Conn) {
 	}
 
 	if r != nil {
-		delete(r.clients, *c)
+		delete(r.clients, c)
 		r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 	}
 	close(sender)
@@ -185,16 +185,16 @@ func clientWriter(conn net.Conn, sender <-chan string) {
 func initRoom() {
 	r1 := room{
 		name:     "room1",
-		clients:  make(map[client]bool),
-		entering: make(chan client),
-		leaving:  make(chan client),
+		clients:  make(map[*client]bool),
+		entering: make(chan *client),
+		leaving:  make(chan *client),
 		messages: make(chan string),
 	}
 	r2 := room{
 		name:     "room2",
-		clients:  make(map[client]bool),
-		entering: make(chan client),
-		leaving:  make(chan client),
+		clients:  make(map[*client]bool),
+		entering: make(chan *client),
+		leaving:  make(chan *client),
 		messages: make(chan string),
 	}
 	rooms = append(rooms, defaultRoom)
@@ -203,7 +203,7 @@ func initRoom() {
 }
 
 // TODO room function
-func joinRoom(name string, c client) *room {
+func joinRoom(name string, c *client) *room {
 	for _, r := range rooms {
 		if r.name == name {
 			r.clients[c] = true
@@ -213,7 +213,7 @@ func joinRoom(name string, c client) *room {
 	return &defaultRoom
 }
 
-func checkAlreadyJoined(name string, c client) bool {
+func checkAlreadyJoined(name string, c *client) bool {
 	for _, r := range rooms {
 		if r.name == name {
 			for cc := range r.clients {
@@ -231,9 +231,9 @@ func checkAlreadyJoined(name string, c client) bool {
 func createRoom(name string) *room {
 	r := room{
 		name:     name,
-		clients:  make(map[client]bool),
-		entering: make(chan client),
-		leaving:  make(chan client),
+		clients:  make(map[*client]bool),
+		entering: make(chan *client),
+		leaving:  make(chan *client),
 		messages: make(chan string),
 	}
 	rooms = append(rooms, r)
