@@ -27,18 +27,20 @@ var defaultRoom = room{
 
 type client struct {
 	name   string
+	rooms  map[string]struct{}
 	sender chan<- string
 }
 
 const (
-	joinCmd    = "/join"
-	leaveCmd   = "/leave"
-	createCmd  = "/create"
-	switchCmd  = "/switch"
-	membersCmd = "/members"
-	roomsCmd   = "/rooms"
-	currentCmd = "/current"
-	loginCmd   = "/login"
+	joinCmd      = "/join"
+	leaveCmd     = "/leave"
+	createCmd    = "/create"
+	switchCmd    = "/switch"
+	membersCmd   = "/members"
+	roomsCmd     = "/rooms"
+	joinRoomsCmd = "/joinRooms"
+	currentCmd   = "/current"
+	loginCmd     = "/login"
 )
 
 var (
@@ -88,10 +90,13 @@ func (r *room) broadcaster() {
 }
 
 func connHandler(conn net.Conn) {
+	// current room
 	var r *room
+
 	sender := make(chan string)
 	c := &client{
 		name:   conn.RemoteAddr().String(),
+		rooms:  make(map[string]struct{}),
 		sender: sender,
 	}
 	go clientWriter(conn, sender)
@@ -99,6 +104,16 @@ func connHandler(conn net.Conn) {
 	input := bufio.NewScanner(conn)
 	for input.Scan() {
 		msg := input.Text()
+
+		if strings.HasPrefix(msg, joinRoomsCmd) {
+			var r string
+			for rr := range c.rooms {
+				r += rr + ","
+			}
+			sender <- r
+			continue
+		}
+
 		if strings.HasPrefix(msg, joinCmd) {
 			n := trimCmd(msg, joinCmd)
 			if checkAlreadyJoined(n, c) {
@@ -113,6 +128,7 @@ func connHandler(conn net.Conn) {
 		}
 
 		if strings.HasPrefix(msg, leaveCmd) {
+			delete(c.rooms, r.name)
 			r.leaving <- c
 			r.messages <- fmt.Sprintf("[%s] %s has left", r.name, c.name)
 			r = nil
@@ -140,7 +156,11 @@ func connHandler(conn net.Conn) {
 		}
 
 		if strings.HasPrefix(msg, roomsCmd) {
-
+			var r string
+			for _, rr := range rooms {
+				r += rr.name + ","
+			}
+			sender <- r
 			continue
 		}
 
@@ -213,6 +233,7 @@ func joinRoom(name string, c *client) *room {
 	for _, r := range rooms {
 		if r.name == name {
 			r.clients[c] = true
+			c.rooms[name] = struct{}{}
 			return &r
 		}
 	}
