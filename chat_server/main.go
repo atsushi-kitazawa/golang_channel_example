@@ -36,6 +36,7 @@ const (
 	createCmd  = "/create"
 	switchCmd  = "/switch"
 	membersCmd = "/members"
+	roomsCmd   = "/rooms"
 	currentCmd = "/current"
 	loginCmd   = "/login"
 )
@@ -135,6 +136,11 @@ func connHandler(conn net.Conn) {
 				members += c.name + ","
 			}
 			sender <- members
+			continue
+		}
+
+		if strings.HasPrefix(msg, roomsCmd) {
+
 			continue
 		}
 
